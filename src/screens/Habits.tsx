@@ -5,8 +5,10 @@ import { Page, SectionTitle, Tile } from '../components/ui'
 
 export default function Habits() {
   const habits = useLiveQuery(() => db.habits.orderBy('createdAt').reverse().toArray()) ?? []
-  const good = habits.filter(h => h.kind === 'good')
-  const bad = habits.filter(h => h.kind === 'bad')
+  const active = habits.filter(h => h.active)
+  const archived = habits.filter(h => !h.active)
+  const good = active.filter(h => h.kind === 'good')
+  const bad = active.filter(h => h.kind === 'bad')
   return (
     <Page title="ПРИВЫЧКИ">
       <div className="grid grid-cols-2 gap-3 mb-5">
@@ -37,7 +39,7 @@ export default function Habits() {
       </ul>
 
       <SectionTitle kicker={`bad · ${bad.length}`} title="Ломаю" />
-      <ul className="space-y-2">
+      <ul className="space-y-2 mb-6">
         {bad.map(h => (
           <li key={h.id}>
             <Link to={`/habits/${h.id}`} className="tile flex items-center justify-between gap-3 hover:bg-pink-50">
@@ -49,8 +51,27 @@ export default function Habits() {
             </Link>
           </li>
         ))}
-        {bad.length === 0 && <li className="text-sm text-ink/60">Все плохие сломаны 😈</li>}
+        {bad.length === 0 && <li className="text-sm text-ink/60">Все плохие сломаны.</li>}
       </ul>
+
+      {archived.length > 0 && (
+        <>
+          <SectionTitle kicker={`архив · ${archived.length}`} title="Архив" sub="Привычки, которые ты отложил. Историю цепи можно посмотреть, открыв привычку." />
+          <ul className="space-y-2">
+            {archived.map(h => (
+              <li key={h.id}>
+                <Link to={`/habits/${h.id}`} className="tile flex items-center justify-between gap-3 hover:bg-pink-50 opacity-60">
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">{h.title}</div>
+                    <div className="text-[11px] uppercase tracking-widest text-ink/60">{h.kind === 'good' ? 'хорошая' : 'плохая'} · {h.identityTag || '—'}</div>
+                  </div>
+                  <span className="text-pink-500">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </Page>
   )
 }

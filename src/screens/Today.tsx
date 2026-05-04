@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { db, todayISO, type Habit } from '../lib/db'
+import { db, todayISO, totalVotes, type Habit } from '../lib/db'
 import { Brand, Pin, Quote, SectionTitle, StripeBar, Tile } from '../components/ui'
 
 export default function Today() {
@@ -8,24 +8,26 @@ export default function Today() {
   const habits = useLiveQuery(() => db.habits.toArray()) ?? []
   const activeHabits = habits.filter(h => h.active)
   const today = todayISO()
-  const todays = useLiveQuery(() => db.checkins.where('date').equals(today).toArray()) ?? []
+  const todays = useLiveQuery(() => db.checkins.where('date').equals(today).toArray(), [today]) ?? []
+  const votes = useLiveQuery(() => totalVotes(), []) ?? 0
 
-  const isDone = (h: Habit) => todays.find(c => c.habitId === h.id && c.done)
-  const doneCount = activeHabits.filter(isDone).length
+  const doneSet = new Set(todays.filter(c => c.done).map(c => c.habitId))
+  const doneCount = activeHabits.filter(h => doneSet.has(h.id)).length
 
   const toggle = async (h: Habit, twoMinuteOnly = false) => {
     const id = h.id + today
     const existing = await db.checkins.get(id)
     if (existing?.done) {
       await db.checkins.put({ ...existing, done: false, twoMinuteOnly: false })
-      if (h.kind === 'good') await db.identity.update('me', { votes: Math.max(0, (identity?.votes ?? 1) - 1) })
     } else {
       await db.checkins.put({
-        id, habitId: h.id, date: today,
-        done: true, twoMinuteOnly,
+        id,
+        habitId: h.id,
+        date: today,
+        done: true,
+        twoMinuteOnly,
         createdAt: Date.now(),
       })
-      if (h.kind === 'good') await db.identity.update('me', { votes: (identity?.votes ?? 0) + 1 })
     }
   }
 
@@ -45,7 +47,7 @@ export default function Today() {
           <Tile className="mb-4">
             <div className="text-[10px] uppercase tracking-[0.25em] text-ink/60">я — человек, который</div>
             <div className="font-display text-3xl mt-1 text-pink-600">{identity.whoIWantToBe}</div>
-            <div className="mt-2 text-xs">голосов отдано: <Pin>{identity.votes}</Pin></div>
+            <div className="mt-2 text-xs">голосов отдано: <Pin>{votes}</Pin></div>
           </Tile>
         )}
 
@@ -53,14 +55,19 @@ export default function Today() {
           <Tile className="text-center py-10">
             <div className="font-display text-2xl mb-2">пусто</div>
             <p className="text-sm mb-4">Создай первую привычку — и сделаешь первый шаг.</p>
-            <Link to="/habits/new" className="btn btn-primary">+ ПРИВЫЧКА</Link>
+            <div className="flex gap-2 justify-center">
+              <Link to="/habits/new" className="btn btn-primary">+ ХОРОШУЮ</Link>
+              <Link to="/habits/break" className="btn btn-ghost">× ПЛОХУЮ</Link>
+            </div>
           </Tile>
         ) : (
           <>
-            <SectionTitle kicker="01 — сегодня" title="Голосуй" sub="Отметь, что сделал. Каждое выполнение = голос за того, кем ты становишься." />
+            <SectionTitle kicker="01 — сегодня" title="Голосуй" sub="Отметь, что сделал. Каждое выполнение — голос за того, кем ты становишься." />
             <ul className="space-y-3">
               {activeHabits.map(h => {
-                const done = !!isDone(h)
+                const c = todays.find(x => x.habitId === h.id && x.done)
+                const done = !!c
+                const twoMinOnly = !!c?.twoMinuteOnly
                 return (
                   <li key={h.id}>
                     <div className={`tile flex items-center gap-3 ${done ? 'tile-pink' : ''}`}>
@@ -74,14 +81,14 @@ export default function Today() {
                       <Link to={`/habits/${h.id}`} className="flex-1 min-w-0">
                         <div className="font-bold text-base truncate">{h.title}</div>
                         <div className={`text-[11px] uppercase tracking-wider ${done ? 'text-paper/80' : 'text-ink/60'}`}>
-                          {h.kind === 'good' ? 'голос за' : 'не сорваться'} · {h.identityTag || '—'}
+                          {h.kind === 'good' ? 'голос за' : 'не сорваться'} · {h.identityTag || '—'} {twoMinOnly && '· 2 мин'}
                         </div>
                       </Link>
-                      {!done && h.kind === 'good' && (
+                      {!done && h.kind === 'good' && h.twoMinute && (
                         <button
                           onClick={() => toggle(h, true)}
                           className="shrink-0 text-[10px] uppercase tracking-widest border-2 border-ink rounded-lg px-2 py-1 bg-paper hover:bg-pink-100"
-                          title="2-минутная версия"
+                          title={`2-минутная версия: ${h.twoMinute}`}
                         >
                           2 мин
                         </button>
@@ -92,7 +99,7 @@ export default function Today() {
               })}
             </ul>
 
-            <Quote>«Не прерывай цепочку. Никогда не пропускай дважды. Пропустил один раз — случайность. Дважды подряд — начало новой привычки».</Quote>
+            <Quote>«Не прерывай цепочку. Никогда не пропускай дважды. Пропустил один раз — случайность. Дважды подряд — начало новой привычки». — гл. 16</Quote>
 
             <div className="grid grid-cols-2 gap-3 mt-4">
               <Tile to="/habits/new" accent>

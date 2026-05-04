@@ -45,16 +45,24 @@ export default function NewHabit({ kind }: Props) {
 
   const set = <K extends keyof Habit>(k: K, v: Habit[K]) => setForm(s => ({ ...s, [k]: v }))
 
+  // Hard-code prepositions so user types only "21:30" / "спальне", not "в 21:30".
   const intentSentence = useMemo(
-    () => `Я буду «${form.title || '___'}» ${form.whenTime || 'в ___'} ${form.whenPlace || 'в ___'}.`,
+    () => `Я буду ${form.title || '[ДЕЙСТВИЕ]'} в ${form.whenTime || '[ВРЕМЯ]'} в ${form.whenPlace || '[МЕСТО]'}.`,
     [form.title, form.whenTime, form.whenPlace],
   )
   const stackSentence = useMemo(
-    () => `После «${form.stackAfter || '[текущая привычка]'}» я сделаю «${form.title || '___'}».`,
+    () => `После того как я ${form.stackAfter || '[ТЕКУЩАЯ ПРИВЫЧКА]'}, я ${form.title || '[НОВАЯ ПРИВЫЧКА]'}.`,
     [form.title, form.stackAfter],
   )
-  const bundleSentence = useMemo(
-    () => `После «${form.title || '[нужная привычка]'}» — «${form.attractiveBundle || '[желаемое действие]'}».`,
+  // Two-line bundle exactly as in Clear (digest §3 Law 2 / book ll. 4010-4014):
+  //   После [ТЕКУЩАЯ ПРИВЫЧКА], я буду [ПРИВЫЧКА, КОТОРАЯ МНЕ НУЖНА].
+  //   После [ПРИВЫЧКА, КОТОРАЯ МНЕ НУЖНА], я буду [ПРИВЫЧКА, КОТОРУЮ Я ХОЧУ].
+  const bundleLine1 = useMemo(
+    () => `После того как я ${form.stackAfter || '[ТЕКУЩАЯ ПРИВЫЧКА]'}, я буду ${form.title || '[ПРИВЫЧКА, КОТОРАЯ МНЕ НУЖНА]'}.`,
+    [form.title, form.stackAfter],
+  )
+  const bundleLine2 = useMemo(
+    () => `После того как я ${form.title || '[ПРИВЫЧКА, КОТОРАЯ МНЕ НУЖНА]'}, я буду ${form.attractiveBundle || '[ПРИВЫЧКА, КОТОРУЮ Я ХОЧУ]'}.`,
     [form.title, form.attractiveBundle],
   )
 
@@ -135,14 +143,14 @@ export default function NewHabit({ kind }: Props) {
                 <span className="label-tag mb-1">намерение для реализации</span>
                 <div className="mt-1">{intentSentence}</div>
               </div>
-              <Field label="ВРЕМЯ" hint="конкретно: «в 21:30», а не «вечером»">
-                <TextInput placeholder="в 21:30" value={form.whenTime} onChange={e => set('whenTime', e.target.value)} />
+              <Field label="ВРЕМЯ" hint="«21:30» — без предлога">
+                <TextInput placeholder="21:30" value={form.whenTime ?? ''} onChange={e => set('whenTime', e.target.value)} />
               </Field>
-              <Field label="МЕСТО" hint="«каждой привычке нужен свой дом»">
-                <TextInput placeholder="в спальне на кровати" value={form.whenPlace} onChange={e => set('whenPlace', e.target.value)} />
+              <Field label="МЕСТО" hint="«спальне на кровати» — без предлога. «Каждой привычке нужен свой дом»">
+                <TextInput placeholder="спальне на кровати" value={form.whenPlace ?? ''} onChange={e => set('whenPlace', e.target.value)} />
               </Field>
-              <Field label="НАЛОЖЕНИЕ ПРИВЫЧЕК" hint='«После [ТЕКУЩАЯ ПРИВЫЧКА] я сделаю [НОВАЯ ПРИВЫЧКА]»'>
-                <TextInput placeholder="почищу зубы" value={form.stackAfter} onChange={e => set('stackAfter', e.target.value)} />
+              <Field label="НАЛОЖЕНИЕ ПРИВЫЧЕК" hint='«После того как я [ТЕКУЩАЯ ПРИВЫЧКА], я [НОВАЯ ПРИВЫЧКА]»'>
+                <TextInput placeholder="выпью утренний кофе" value={form.stackAfter ?? ''} onChange={e => set('stackAfter', e.target.value)} />
               </Field>
               <div className="tile p-3 text-sm">
                 <span className="label-tag mb-1">наложение</span>
@@ -154,15 +162,16 @@ export default function NewHabit({ kind }: Props) {
 
           {kind === 'good' && law.key === 'attractive' && (
             <>
-              <Field label="СОЧЕТАНИЕ ПРИЯТНОГО С ПОЛЕЗНЫМ" hint='«После [НУЖНО] я буду [ХОЧУ]»'>
-                <TextInput placeholder="смотреть сериал" value={form.attractiveBundle} onChange={e => set('attractiveBundle', e.target.value)} />
+              <Field label="ЖЕЛАЕМОЕ ДЕЙСТВИЕ" hint='«После [НУЖНО] — [ХОЧУ]». Что ты и так любишь — связываем с нужным'>
+                <TextInput placeholder="посмотрю одну серию сериала" value={form.attractiveBundle ?? ''} onChange={e => set('attractiveBundle', e.target.value)} />
               </Field>
-              <div className="tile p-3 text-sm">
-                <span className="label-tag mb-1">связка</span>
-                <div className="mt-1">{bundleSentence}</div>
+              <div className="tile p-3 text-sm space-y-1">
+                <span className="label-tag mb-1">формула из книги (две строки)</span>
+                <div>{bundleLine1}</div>
+                <div>{bundleLine2}</div>
               </div>
               <Field label="ПЕРЕФОРМУЛИРОВКА" hint='«я должен» → «у меня есть возможность»'>
-                <TextArea placeholder="не «я должен заниматься», а «у меня есть возможность тренировать тело»" value={form.attractiveReframe} onChange={e => set('attractiveReframe', e.target.value)} />
+                <TextArea placeholder="не «я должен заниматься», а «у меня есть возможность тренировать тело»" value={form.attractiveReframe ?? ''} onChange={e => set('attractiveReframe', e.target.value)} />
               </Field>
               <Quote>«Именно ожидание вознаграждения, а не само его получение побуждает нас действовать».</Quote>
               <Quote>«Окружите себя людьми, у которых есть привычки, которые вы хотели бы сформировать у себя».</Quote>
@@ -172,10 +181,10 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'good' && law.key === 'easy' && (
             <>
               <Field label="ПРАВИЛО ДВУХ МИНУТ" hint="любая новая привычка должна занимать ≤ 2 минут">
-                <TextInput placeholder="открыть книгу и прочитать одну страницу" value={form.twoMinute} onChange={e => set('twoMinute', e.target.value)} />
+                <TextInput placeholder="открыть книгу и прочитать одну страницу" value={form.twoMinute ?? ''} onChange={e => set('twoMinute', e.target.value)} />
               </Field>
               <Field label="СНИЖЕНИЕ ТРЕНИЯ" hint="«перезагрузи комнату» под завтрашнее действие">
-                <TextArea placeholder="положить книгу на подушку, очки рядом, телефон — в другую комнату" value={form.frictionReduction} onChange={e => set('frictionReduction', e.target.value)} />
+                <TextArea placeholder="положить книгу на подушку, очки рядом, телефон — в другую комнату" value={form.frictionReduction ?? ''} onChange={e => set('frictionReduction', e.target.value)} />
               </Field>
               <Quote>«Сосредоточьтесь на действии, а не на движении». Планировать ≠ делать.</Quote>
               <Quote>«Стандартизация предшествует оптимизации». Сначала закрепи шаблон.</Quote>
@@ -185,7 +194,7 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'good' && law.key === 'satisfying' && (
             <>
               <Field label="НЕМЕДЛЕННАЯ НАГРАДА" hint="что-то приятное СРАЗУ после действия — и в духе твоей идентичности">
-                <TextInput placeholder="галочка + чашка какао" value={form.satisfyingReward} onChange={e => set('satisfyingReward', e.target.value)} />
+                <TextInput placeholder="галочка + чашка какао" value={form.satisfyingReward ?? ''} onChange={e => set('satisfyingReward', e.target.value)} />
               </Field>
               <Quote>«Мы повторяем то, за что получаем немедленное вознаграждение. Мы избегаем того, за что несём немедленное наказание».</Quote>
               <p className="text-sm">После check-in BEHAVE добавит +1 голос за <Pin>{form.identityTag || 'твою идентичность'}</Pin> и продлит цепочку.</p>
@@ -196,7 +205,7 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'bad' && law.key === 'invisible' && (
             <>
               <Field label="ЧТО УБРАТЬ ИЗ СРЕДЫ?" hint="один сигнал держит всю петлю">
-                <TextArea placeholder="убрать телефон из спальни, удалить приложение, сложить алкоголь в подвал, выключить уведомления" value={form.invisibleAction} onChange={e => set('invisibleAction', e.target.value)} />
+                <TextArea placeholder="убрать телефон из спальни, удалить приложение, сложить алкоголь в подвал, выключить уведомления" value={form.invisibleAction ?? ''} onChange={e => set('invisibleAction', e.target.value)} />
               </Field>
               <Quote>«Самоконтроль — это краткосрочная, а не долгосрочная стратегия. Проще избежать искушения, чем противостоять ему».</Quote>
             </>
@@ -205,7 +214,7 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'bad' && law.key === 'unattractive' && (
             <>
               <Field label="ПЕРЕОСМЫСЛИ ВЫГОДУ" hint="метод Аллена Карра: подсветить настоящую цену">
-                <TextArea placeholder='не «расслабиться курением», а «отравить лёгкие». Не «соцсети — отдых», а «убить два часа жизни»' value={form.unattractiveCost} onChange={e => set('unattractiveCost', e.target.value)} />
+                <TextArea placeholder='не «расслабиться курением», а «отравить лёгкие». Не «соцсети — отдых», а «убить два часа жизни»' value={form.unattractiveCost ?? ''} onChange={e => set('unattractiveCost', e.target.value)} />
               </Field>
               <Quote>«У каждого поведения есть поверхностный уровень желания и более глубокий — мотив, лежащий в его основе». Найди настоящий мотив — замени привычку.</Quote>
             </>
@@ -214,7 +223,7 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'bad' && law.key === 'difficult' && (
             <>
               <Field label="КОНТРАКТ ОДИССЕЯ" hint="увеличь число шагов между собой и срывом">
-                <TextArea placeholder="блокировщик сайтов, отключить карту от подписки, выдать пароль другу, отдать ключи от бара" value={form.difficultBarrier} onChange={e => set('difficultBarrier', e.target.value)} />
+                <TextArea placeholder="блокировщик сайтов, отключить карту от подписки, выдать пароль другу, отдать ключи от бара" value={form.difficultBarrier ?? ''} onChange={e => set('difficultBarrier', e.target.value)} />
               </Field>
               <Quote>Виктор Гюго запер всю одежду в сундук, чтобы дописать «Собор Парижской Богоматери». Сделай срыв технически сложным.</Quote>
             </>
@@ -223,7 +232,7 @@ export default function NewHabit({ kind }: Props) {
           {kind === 'bad' && law.key === 'unsatisfying' && (
             <>
               <Field label="КОНТРАКТ О ПРИВЫЧКЕ + ШТРАФ" hint="свидетель + немедленная боль больше выигрыша от срыва">
-                <TextArea placeholder='свидетель: Маша. Штраф: перевожу 2000 ₽ на её счёт за каждый срыв и публикую факт в общем чате.' value={form.unsatisfyingPenalty} onChange={e => set('unsatisfyingPenalty', e.target.value)} />
+                <TextArea placeholder='свидетель: Маша. Штраф: перевожу 2000 ₽ на её счёт за каждый срыв и публикую факт в общем чате.' value={form.unsatisfyingPenalty ?? ''} onChange={e => set('unsatisfyingPenalty', e.target.value)} />
               </Field>
               <Quote>«Боль немедленна → привычка умирает быстро». Сила наказания должна превышать выигрыш от плохой привычки.</Quote>
             </>
@@ -246,7 +255,7 @@ export default function NewHabit({ kind }: Props) {
               <>
                 <div><span className="label-tag">когда</span> <div className="mt-1">{intentSentence}</div></div>
                 <div><span className="label-tag">после чего</span> <div className="mt-1">{stackSentence}</div></div>
-                <div><span className="label-tag">привлекательно</span> <div className="mt-1">{bundleSentence}</div></div>
+                <div><span className="label-tag">привлекательно</span><div className="mt-1 space-y-1"><div>{bundleLine1}</div><div>{bundleLine2}</div></div></div>
                 <div><span className="label-tag">2-минутная версия</span> <div className="mt-1">{form.twoMinute || '—'}</div></div>
                 <div><span className="label-tag">трение</span> <div className="mt-1">{form.frictionReduction || '—'}</div></div>
                 <div><span className="label-tag">награда</span> <div className="mt-1">{form.satisfyingReward || '—'}</div></div>

@@ -3,13 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 
 export function Page({ children, title, back }: PropsWithChildren<{ title?: string; back?: string }>) {
   const nav = useNavigate()
+  const onBack = () => {
+    if (!back) return
+    if (back === '-1') nav(-1)
+    else nav(back)
+  }
   return (
     <div className="relative min-h-screen safe-pt safe-pb px-5 pb-24">
       <div className="relative z-10 max-w-xl mx-auto">
         {(title || back) && (
           <header className="flex items-center justify-between mb-6 mt-2">
             {back ? (
-              <button onClick={() => nav(back === '-1' ? -1 : (back as any))} className="btn btn-ghost text-xs px-3 py-2">← НАЗАД</button>
+              <button onClick={onBack} className="btn btn-ghost text-xs px-3 py-2">← НАЗАД</button>
             ) : <span />}
             {title && <span className="label-tag">{title}</span>}
           </header>

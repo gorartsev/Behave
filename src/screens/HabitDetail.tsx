@@ -10,33 +10,29 @@ export default function HabitDetail() {
   const nav = useNavigate()
   const habit = useLiveQuery(() => db.habits.get(id), [id])
   const [streak, setStreak] = useState({ current: 0, longest: 0, missedTwiceInRow: false, missedYesterday: false })
-  const [grid, setGrid] = useState<{ date: string; done: boolean }[]>([])
+  const [grid, setGrid] = useState<{ date: string; done: boolean; twoMinuteOnly: boolean }[]>([])
   const today = todayISO()
   const todayCheck = useLiveQuery(() => db.checkins.get(id + today), [id, today])
+  const allChecks = useLiveQuery(() => db.checkins.where('habitId').equals(id).toArray(), [id])
 
   useEffect(() => {
     if (!id) return
     streakFor(id).then(setStreak)
-    recentCheckins(id, 35).then(rs => setGrid(rs.map(r => ({ date: r.date, done: r.done }))))
-  }, [id, todayCheck])
+    recentCheckins(id, 35).then(rs =>
+      setGrid(rs.map(r => ({ date: r.date, done: r.done, twoMinuteOnly: r.twoMinuteOnly }))),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, allChecks?.length, todayCheck?.done, todayCheck?.twoMinuteOnly])
 
   if (!habit) return <Page back="/habits" title="ПРИВЫЧКА"><div className="text-sm text-ink/60">Не найдено.</div></Page>
 
-  const toggle = async () => {
+  const toggle = async (twoMinuteOnly = false) => {
     const cid = id + today
     const existing = await db.checkins.get(cid)
     if (existing?.done) {
-      await db.checkins.put({ ...existing, done: false })
-      if (habit.kind === 'good') {
-        const me = await db.identity.get('me')
-        if (me) await db.identity.update('me', { votes: Math.max(0, me.votes - 1) })
-      }
+      await db.checkins.put({ ...existing, done: false, twoMinuteOnly: false })
     } else {
-      await db.checkins.put({ id: cid, habitId: id, date: today, done: true, twoMinuteOnly: false, createdAt: Date.now() })
-      if (habit.kind === 'good') {
-        const me = await db.identity.get('me')
-        if (me) await db.identity.update('me', { votes: me.votes + 1 })
-      }
+      await db.checkins.put({ id: cid, habitId: id, date: today, done: true, twoMinuteOnly, createdAt: Date.now() })
     }
   }
 
@@ -44,6 +40,10 @@ export default function HabitDetail() {
     if (!confirm('Архивировать привычку?')) return
     await db.habits.update(id, { active: false, archivedAt: Date.now() })
     nav('/habits')
+  }
+
+  const unarchive = async () => {
+    await db.habits.update(id, { active: true, archivedAt: undefined })
   }
 
   const remove = async () => {
@@ -75,21 +75,30 @@ export default function HabitDetail() {
         </Tile>
         <Tile className={`text-center py-3 ${streak.missedTwiceInRow ? 'tile-pink animate-flicker' : ''}`}>
           <div className="font-display text-3xl">{streak.missedTwiceInRow ? '!!' : streak.missedYesterday ? '!' : 'OK'}</div>
-          <div className="text-[10px] uppercase tracking-widest mt-1">не пропускай дважды</div>
+          <div className="text-[10px] uppercase tracking-widest mt-1">никогда не пропускай дважды</div>
         </Tile>
       </div>
 
-      <button onClick={toggle} className={`btn w-full text-base py-4 ${todayCheck?.done ? 'btn-danger' : 'btn-primary'}`}>
+      <button onClick={() => toggle(false)} className={`btn w-full text-base py-4 ${todayCheck?.done ? 'btn-danger' : 'btn-primary'}`}>
         {todayCheck?.done ? '✓ СДЕЛАНО СЕГОДНЯ — ОТМЕНИТЬ' : (habit.kind === 'good' ? '+ ОТДАТЬ ГОЛОС' : '✓ НЕ СОРВАЛСЯ')}
       </button>
+      {habit.kind === 'good' && habit.twoMinute && !todayCheck?.done && (
+        <button onClick={() => toggle(true)} className="btn btn-ghost w-full mt-2 text-xs">
+          ⏱ 2-МИН ВЕРСИЯ: {habit.twoMinute}
+        </button>
+      )}
 
-      <SectionTitle kicker="35 дней" title="Цепь" sub="«Не разрывай цепь». Один квадрат = один день." />
+      <SectionTitle kicker="35 дней" title="Цепь" sub="«Не прерывай цепочку». Один квадрат = один день. Светлая заливка — 2-минутная версия." />
       <div className="grid grid-cols-7 gap-1.5 mb-4">
         {grid.map(d => (
           <div
             key={d.date}
-            title={d.date}
-            className={`aspect-square border border-ink rounded ${d.done ? 'bg-pink-500' : 'bg-paper'} ${d.date === today ? 'outline outline-2 outline-pink-600 outline-offset-1' : ''}`}
+            title={`${d.date}${d.twoMinuteOnly ? ' · 2 мин' : ''}`}
+            className={`aspect-square border border-ink rounded ${
+              d.done
+                ? (d.twoMinuteOnly ? 'bg-pink-200' : 'bg-pink-500')
+                : 'bg-paper'
+            } ${d.date === today ? 'outline outline-2 outline-pink-600 outline-offset-1' : ''}`}
           />
         ))}
       </div>
@@ -97,8 +106,8 @@ export default function HabitDetail() {
       {habit.kind === 'good' ? (
         <section className="space-y-3">
           <SectionTitle kicker="система" title="4 закона" />
-          <Tile><div className="label-tag mb-1">1 · ПРИДАЙТЕ ОЧЕВИДНОСТИ</div><div className="text-sm">Я буду <Pin>«{habit.title}»</Pin> {habit.whenTime || '___'} {habit.whenPlace || '___'}.<br />{habit.stackAfter && <>После «<Pin>{habit.stackAfter}</Pin>» я сделаю <Pin>«{habit.title}»</Pin>.</>}</div></Tile>
-          <Tile><div className="label-tag mb-1">2 · ДОБАВЬТЕ ПРИВЛЕКАТЕЛЬНОСТИ</div><div className="text-sm">{habit.attractiveBundle ? <>После «{habit.title}» — <Pin>«{habit.attractiveBundle}»</Pin></> : '—'}{habit.attractiveReframe && <><br />{habit.attractiveReframe}</>}</div></Tile>
+          <Tile><div className="label-tag mb-1">1 · ПРИДАЙТЕ ОЧЕВИДНОСТИ</div><div className="text-sm">Я буду <Pin>{habit.title}</Pin> {habit.whenTime || '[время]'} {habit.whenPlace || '[место]'}.<br />{habit.stackAfter && <>После того как я <Pin>{habit.stackAfter}</Pin>, я <Pin>{habit.title}</Pin>.</>}</div></Tile>
+          <Tile><div className="label-tag mb-1">2 · ДОБАВЬТЕ ПРИВЛЕКАТЕЛЬНОСТИ</div><div className="text-sm">{habit.attractiveBundle ? <>После того как я <Pin>{habit.title}</Pin>, я <Pin>{habit.attractiveBundle}</Pin>.</> : '—'}{habit.attractiveReframe && <><br />{habit.attractiveReframe}</>}</div></Tile>
           <Tile><div className="label-tag mb-1">3 · УПРОСТИТЕ</div><div className="text-sm"><div>2-мин версия: <Pin>{habit.twoMinute || '—'}</Pin></div><div className="mt-1">Подготовка: {habit.frictionReduction || '—'}</div></div></Tile>
           <Tile><div className="label-tag mb-1">4 · ПРИВНЕСИТЕ УДОВОЛЬСТВИЕ</div><div className="text-sm">Награда: <Pin>{habit.satisfyingReward || '—'}</Pin></div></Tile>
         </section>
@@ -112,10 +121,12 @@ export default function HabitDetail() {
         </section>
       )}
 
-      <Quote>«Вы получаете то, что регулярно повторяете».</Quote>
+      <Quote>«Вы получаете то, что регулярно повторяете». — гл. 1</Quote>
 
       <div className="flex gap-2 mt-6">
-        <button onClick={archive} className="btn btn-ghost flex-1 text-xs">В АРХИВ</button>
+        {habit.active
+          ? <button onClick={archive} className="btn btn-ghost flex-1 text-xs">В АРХИВ</button>
+          : <button onClick={unarchive} className="btn btn-primary flex-1 text-xs">ВЕРНУТЬ В РАБОТУ</button>}
         <button onClick={remove} className="btn btn-danger flex-1 text-xs">УДАЛИТЬ</button>
       </div>
     </Page>

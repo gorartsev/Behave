@@ -1,29 +1,62 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { db } from '../lib/db'
+import { db, uid, type Habit } from '../lib/db'
 import { Brand, Field, Page, SectionTitle, StripeBar, TextInput, Quote, Pin } from '../components/ui'
 
 const STEPS = 4
 
+const emptyHabitFields = (): Omit<Habit, 'id' | 'kind' | 'title' | 'identityTag' | 'createdAt' | 'active'> => ({
+  whenTime: '',
+  whenPlace: '',
+  stackAfter: '',
+  attractiveBundle: '',
+  attractiveReframe: '',
+  twoMinute: '',
+  frictionReduction: '',
+  satisfyingReward: '',
+  invisibleAction: '',
+  unattractiveCost: '',
+  difficultBarrier: '',
+  unsatisfyingPenalty: '',
+})
+
 export default function Onboarding() {
   const nav = useNavigate()
   const [step, setStep] = useState(0)
-  const [identityWord, setIdentityWord] = useState('')   // "читатель"
-  const [becomeWho, setBecomeWho] = useState('')         // "человек, который читает каждый день"
-  const [proof, setProof] = useState('')                 // "одна страница в день"
+  const [identityWord, setIdentityWord] = useState('')
+  const [becomeWho, setBecomeWho] = useState('')
+  const [proof, setProof] = useState('')
   const [agree, setAgree] = useState(false)
 
   const next = () => setStep(s => Math.min(s + 1, STEPS - 1))
   const prev = () => setStep(s => Math.max(s - 1, 0))
 
   const finish = async () => {
+    const word = identityWord.trim()
+    const who = becomeWho.trim()
+    const seedTitle = proof.trim()
     await db.identity.put({
       id: 'me',
-      whoIWantToBe: becomeWho.trim() || identityWord.trim(),
+      whoIWantToBe: who || word,
+      identityWord: word,
       createdAt: Date.now(),
-      votes: 0,
     })
-    nav('/habits/new', { replace: true })
+    if (seedTitle) {
+      const id = uid()
+      await db.habits.put({
+        id,
+        kind: 'good',
+        title: seedTitle,
+        identityTag: word,
+        ...emptyHabitFields(),
+        twoMinute: seedTitle,
+        createdAt: Date.now(),
+        active: true,
+      })
+      nav(`/habits/${id}`, { replace: true })
+    } else {
+      nav('/', { replace: true })
+    }
   }
 
   return (

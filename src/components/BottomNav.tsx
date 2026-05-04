@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 
 const items = [
-  { to: '/',          label: 'СЕГОДНЯ', icon: '◉' },
+  { to: '/',          label: 'ДЕНЬ',     icon: '◉' },
   { to: '/habits',    label: 'ПРИВЫЧКИ', icon: '▣' },
   { to: '/scorecard', label: 'АУДИТ',    icon: '✎' },
   { to: '/review',    label: 'ОБЗОР',    icon: '↻' },
@@ -18,13 +18,13 @@ export default function BottomNav() {
             to={it.to}
             end={it.to === '/'}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[10px] tracking-widest font-bold uppercase transition-colors ${
+              `flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[9px] tracking-widest font-bold uppercase transition-colors ${
                 isActive ? 'bg-pink-500 text-paper' : 'text-ink hover:bg-pink-100'
               }`
             }
           >
             <span className="text-base leading-none">{it.icon}</span>
-            <span>{it.label}</span>
+            <span className="truncate max-w-full">{it.label}</span>
           </NavLink>
         ))}
       </div>

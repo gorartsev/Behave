@@ -5,8 +5,8 @@ export type HabitKind = 'good' | 'bad'
 export interface Identity {
   id: 'me'
   whoIWantToBe: string         // "Я — человек, который..."
+  identityWord: string         // "читатель" — одно слово
   createdAt: number
-  votes: number                // total votes for this identity
 }
 
 export interface Habit {
@@ -55,21 +55,34 @@ export interface ScorecardEntry {
   createdAt: number
 }
 
+export type ReviewKind = 'weekly' | 'annual' | 'integrity'
+
 export interface ReviewEntry {
-  id: string                   // YYYY-WW
-  weekOf: string               // YYYY-MM-DD (Monday)
-  whatWorked: string
-  whatFailed: string
-  whatToChange: string
+  id: string                   // 'wk-YYYY-MM-DD' | 'yr-YYYY' | 'int-YYYY'
+  kind: ReviewKind
+  periodOf: string             // 'YYYY-MM-DD' for weekly; 'YYYY' for annual/integrity
+  q1: string                   // weekly: что сработало | annual: что получилось | integrity: главные ценности
+  q2: string                   // weekly: что не получилось | annual: что не получилось | integrity: живу ли в согласии
+  q3: string                   // weekly: что меняю | annual: чему научился | integrity: как поднять планку
   createdAt: number
 }
 
 export interface HabitContract {
   id: string
-  text: string                 // полный текст контракта
-  partner: string              // имя свидетеля / партнёра
+  goal: string                 // долгосрочная цель
+  phases: string               // фазы по кварталам
+  dailyHabits: string          // ежедневные привычки
   penalty: string              // что произойдёт при нарушении
+  partner1: string             // имя 1-го свидетеля
+  partner2: string             // имя 2-го свидетеля (опционально)
   signedAt: number
+}
+
+export interface AuditItem {
+  id: string
+  question: string
+  answer: string
+  createdAt: number
 }
 
 class BehaveDB extends Dexie {
@@ -79,9 +92,11 @@ class BehaveDB extends Dexie {
   scorecard!: Table<ScorecardEntry, string>
   reviews!: Table<ReviewEntry, string>
   contracts!: Table<HabitContract, string>
+  audit!: Table<AuditItem, string>
 
   constructor() {
     super('behave')
+    // v1: original schema (kept for migration of any test installs)
     this.version(1).stores({
       identity:  '&id',
       habits:    '&id, kind, active, identityTag, createdAt',
@@ -90,6 +105,29 @@ class BehaveDB extends Dexie {
       reviews:   '&id, weekOf',
       contracts: '&id, signedAt',
     })
+    // v2: drop `votes` from identity (now derived from check-ins),
+    // add `identityWord`, restructure reviews, add audit table.
+    this.version(2).stores({
+      identity:  '&id',
+      habits:    '&id, kind, active, identityTag, createdAt',
+      checkins:  '&id, habitId, date, done',
+      scorecard: '&id, verdict, createdAt',
+      reviews:   '&id, kind, periodOf',
+      contracts: '&id, signedAt',
+      audit:     '&id, createdAt',
+    }).upgrade(tx => tx.table('reviews').toCollection().modify((r: any) => {
+      if (r.weekOf && !r.kind) {
+        r.kind = 'weekly'
+        r.periodOf = r.weekOf
+        r.q1 = r.whatWorked ?? ''
+        r.q2 = r.whatFailed ?? ''
+        r.q3 = r.whatToChange ?? ''
+        delete r.weekOf
+        delete r.whatWorked
+        delete r.whatFailed
+        delete r.whatToChange
+      }
+    }))
   }
 }
 
@@ -115,3 +153,22 @@ export const weekStartISO = (date = new Date()) => {
 
 export const uid = () =>
   (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36))
+
+// Derived counter: total "votes" = total successful check-ins of GOOD habits.
+// Storing this would create a race condition (read-then-write); deriving avoids it.
+export async function totalVotes(): Promise<number> {
+  const goodIds = (await db.habits.where('kind').equals('good').toArray()).map(h => h.id)
+  if (goodIds.length === 0) return 0
+  return db.checkins.where('habitId').anyOf(goodIds).filter(c => c.done).count()
+}
+
+// Votes per identityWord — used for "ты — человек, который ___" tally.
+export async function votesForIdentity(word: string): Promise<number> {
+  if (!word) return 0
+  const habitIds = (await db.habits
+    .where('kind').equals('good')
+    .filter(h => h.identityTag.toLowerCase() === word.toLowerCase())
+    .toArray()).map(h => h.id)
+  if (habitIds.length === 0) return 0
+  return db.checkins.where('habitId').anyOf(habitIds).filter(c => c.done).count()
+}
