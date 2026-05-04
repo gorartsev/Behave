@@ -4,8 +4,17 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 
-// HashRouter avoids SPA-fallback issues on GitHub Pages (no server-side 404 routing).
-// URLs look like /Behave/#/habits. PWA install + offline still work fine.
+// Kill any service worker left over from earlier deploys — those workers
+// can serve broken cached HTML/JS and cause a permanent white screen.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(rs => {
+    for (const r of rs) r.unregister()
+  }).catch(() => {})
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {})
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HashRouter>
@@ -13,5 +22,3 @@ createRoot(document.getElementById('root')!).render(
     </HashRouter>
   </StrictMode>,
 )
-
-

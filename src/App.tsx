@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Identity } from './lib/db'
+import { db } from './lib/db'
 import BottomNav from './components/BottomNav'
 import Today from './screens/Today'
 import Habits from './screens/Habits'
@@ -13,28 +14,43 @@ import Onboarding from './screens/Onboarding'
 import Audit from './screens/Audit'
 import Contract from './screens/Contract'
 
-const LOADING = Symbol('loading')
-
 export default function App() {
-  // useLiveQuery returns `undefined` both while loading AND when the record
-  // doesn't exist. We pass a sentinel default so we can distinguish the two
-  // states cleanly: LOADING -> still resolving; undefined -> no identity yet;
-  // Identity object -> ready.
-  const identity = useLiveQuery<Identity | undefined, typeof LOADING>(
-    () => db.identity.get('me'),
-    [],
-    LOADING,
-  )
+  // Two-step state: first await Dexie to actually open and tell us whether
+  // an identity row exists. Then useLiveQuery follows live updates.
+  const [ready, setReady] = useState(false)
+  const [hasIdentity, setHasIdentity] = useState(false)
+  const liveIdentity = useLiveQuery(() => db.identity.get('me'), [])
 
-  if (identity === LOADING) {
-    return <div className="min-h-screen grid place-items-center font-display text-3xl text-pink-500 animate-flicker">BEHAVE…</div>
+  useEffect(() => {
+    db.identity.get('me')
+      .then(r => { setHasIdentity(!!r); setReady(true) })
+      .catch(err => {
+        console.error('[BEHAVE] db open failed:', err)
+        setReady(true)
+      })
+  }, [])
+
+  // Sync hasIdentity with live updates after first load.
+  useEffect(() => {
+    if (ready) setHasIdentity(!!liveIdentity)
+  }, [liveIdentity, ready])
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-paper font-mono text-pink-600">
+        <div className="text-center">
+          <div className="font-display text-5xl">BEHAVE</div>
+          <div className="text-xs uppercase tracking-widest mt-2">загрузка…</div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <>
       <Routes>
-        {!identity && <Route path="*" element={<Onboarding />} />}
-        {identity && <>
+        {!hasIdentity && <Route path="*" element={<Onboarding />} />}
+        {hasIdentity && <>
           <Route path="/" element={<Today />} />
           <Route path="/habits" element={<Habits />} />
           <Route path="/habits/new" element={<NewHabit kind="good" />} />
@@ -49,7 +65,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </>}
       </Routes>
-      {identity && <BottomNav />}
+      {hasIdentity && <BottomNav />}
     </>
   )
 }
