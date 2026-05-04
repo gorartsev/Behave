@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-paper text-ink font-mono;
+    font-feature-settings: "ss01", "ss02";
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+  /* Grunge paper texture: layered noise + faint pink tint */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(255,45,135,0.05), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(255,45,135,0.04), transparent 45%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.08 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    mix-blend-mode: multiply;
+  }
+  ::selection { background: #ff2d87; color: #fff; }
+}
+
+@layer components {
+  .tile {
+    @apply relative bg-paper border-2 border-ink rounded-2xl p-4 shadow-brutal transition-transform;
+  }
+  .tile:active { transform: translate(3px, 3px); box-shadow: 3px 3px 0 0 #0a0a0a; }
+  .tile-pink {
+    @apply bg-pink-500 text-paper border-ink;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 font-mono font-bold uppercase tracking-wider border-2 border-ink rounded-xl shadow-brutal-sm transition-transform select-none;
+  }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 #0a0a0a; }
+  .btn-primary { @apply bg-pink-500 text-paper; }
+  .btn-ghost   { @apply bg-paper text-ink; }
+  .btn-danger  { @apply bg-ink text-pink-500; }
+  .label-tag {
+    @apply inline-block px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] border border-ink bg-paper;
+  }
+  .stripe {
+    background-image: repeating-linear-gradient(45deg, #ff2d87 0 8px, #0a0a0a 8px 16px);
+  }
+  .stripe-pale {
+    background-image: repeating-linear-gradient(45deg, #ffd9ec 0 8px, #fafafa 8px 16px);
+  }
+  .h-display {
+    @apply font-display uppercase leading-[0.85] tracking-tight;
+  }
+  .pin {
+    @apply inline-block px-1 bg-ink text-pink-500;
+  }
+  .glitch {
+    position: relative;
+  }
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .glitch::before { color: #ff2d87; transform: translate(1px, 0); mix-blend-mode: multiply; opacity: .7; }
+  .glitch::after  { color: #0a0a0a; transform: translate(-1px, 0); mix-blend-mode: multiply; opacity: .35; }
+  .stamp {
+    @apply inline-block uppercase font-display text-pink-500 border-2 border-pink-500 px-2 py-0.5 -rotate-3;
+  }
+  .scroll-snap-x { scroll-snap-type: x mandatory; }
+  .scroll-snap-x > * { scroll-snap-align: start; }
+}
+
+/* Safe area for iOS standalone */
+.safe-pt { padding-top: max(env(safe-area-inset-top), 1rem); }
+.safe-pb { padding-bottom: max(env(safe-area-inset-bottom), 1rem); }
